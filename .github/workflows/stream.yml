@@ -1,0 +1,57 @@
+name: 24-7 Free Stream Engine
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  repository_dispatch:
+    types: [start_stream]
+  workflow_dispatch:
+
+jobs:
+  stream:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Install FFMPEG and Tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg jq
+        pip install yt-dlp
+
+    - name: Check Database and Stream
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      run: |
+        echo "Fetching streaming config from Supabase..."
+        
+        # Database se data nikalna
+        RESPONSE=$(curl -s -X GET "${{ secrets.SUPABASE_URL }}/rest/v1/streams?status=eq.active" \
+          -H "apikey: ${{ secrets.SUPABASE_KEY }}" \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_KEY }}")
+        
+        echo "Database Response: $RESPONSE"
+        
+        VIDEO_URL=$(echo $RESPONSE | jq -r '.[0].video_url // empty')
+        STREAM_KEY=$(echo $RESPONSE | jq -r '.[0].stream_key // empty')
+
+        if [ -z "$VIDEO_URL" ] || [ "$VIDEO_URL" = "null" ]; then
+          echo "ERROR: No active video link found in database!"
+          exit 1
+        fi
+
+        if [ -z "$STREAM_KEY" ] || [ "$STREAM_KEY" = "null" ]; then
+          echo "ERROR: Stream Key is missing!"
+          exit 1
+        fi
+
+        echo "Success: Found active stream config."
+        echo "Downloading video content..."
+        
+        # Google Drive aur normal video links dono ke liye safe download
+        yt-dlp --no-check-certificate -f mp4 "$VIDEO_URL" -o video.mp4 || wget -O video.mp4 "$VIDEO_URL"
+        
+        echo "Launching 24/7 FFMPEG Encoder..."
+        ffmpeg -re -stream_loop -1 -i video.mp4 -c:v libx264 -preset veryfast -b:v 2500k -maxrate 2500k -bufsize 5000k -pix_fmt yuv420p -g 50 -c:a aac -b:a 128k -ar 44100 -f flv "rtmp://a.rtmp.youtube.com/live2/$STREAM_KEY"
