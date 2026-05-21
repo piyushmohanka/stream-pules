@@ -47,6 +47,5 @@ jobs:
         echo "Downloading video content..."
         yt-dlp --no-check-certificate -f mp4 "$VIDEO_URL" -o video.mp4 || wget -O video.mp4 "$VIDEO_URL"
         
-        echo "Streaming directly to YouTube (Bypassing Dashboard)..."
-        # Humne URL ke aage ?bandwidthtest=false aur direct push settings lagayi hain taaki stream turant public ho jaye
+        echo "Streaming directly to YouTube..."
         ffmpeg -re -stream_loop -1 -i video.mp4 -c:v libx264 -preset veryfast -b:v 2500k -maxrate 2500k -bufsize 5000k -pix_fmt yuv420p -g 50 -c:a aac -b:a 128k -ar 44100 -f flv "rtmp://a.rtmp.youtube.com/live2/$STREAM_KEY?bandwidthtest=false"
