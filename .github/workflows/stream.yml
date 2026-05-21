@@ -2,19 +2,15 @@ name: 24-7 Free Stream Engine
 
 on:
   repository_dispatch:
-    types: [start_stream, start-stream, stop_stream, stop-stream]
+    types: [start_stream, start-stream]
   workflow_dispatch:
     inputs:
-      action_type:
-        description: 'Type START or STOP'
-        required: false
-        default: 'START'
       video_url:
-        description: 'Google Drive Video Direct Link (Only for START)'
+        description: 'Google Drive Video Direct Link'
         required: false
         default: ''
       stream_key:
-        description: 'YouTube Stream Key (Only for START)'
+        description: 'YouTube Stream Key'
         required: false
         default: ''
 
@@ -24,34 +20,6 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v3
-
-    - name: Check If Website Sent STOP Signal
-      run: |
-        echo "Checking action trigger..."
-        
-        # Determine if it is a stop request from website or manual input
-        TRIGGER_TYPE="${{ github.event.action }}"
-        MANUAL_TYPE="${{ github.event.inputs.action_type }}"
-        
-        if [ "$TRIGGER_TYPE" = "stop_stream" ] || [ "$TRIGGER_TYPE" = "stop-stream" ] || [ "$MANUAL_TYPE" = "STOP" ]; then
-          echo "⚠️ STOP SIGNAL RECEIVED FROM WEBSITE! Cancelling active streams..."
-          
-          # This API call will find any currently running stream workflow and cancel it automatically
-          ACTIVE_RUNS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/stream.yml/runs?status=in_progress" \
-            | jq '.workflow_runs[].id')
-          
-          for RUN_ID in $ACTIVE_RUNS; do
-            if [ "$RUN_ID" != "${{ github.run_id }}" ]; then
-              echo "Cancelling running workflow ID: $RUN_ID"
-              curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID/cancel"
-            fi
-          done
-          
-          echo "All other active streams stopped successfully. Exiting this trigger."
-          exit 0
-        fi
 
     - name: Install FFMPEG and Tools
       run: |
@@ -80,4 +48,5 @@ jobs:
         yt-dlp --no-check-certificate -f mp4 "$VIDEO_URL" -o video.mp4 || wget -O video.mp4 "$VIDEO_URL"
         
         echo "Streaming directly to YouTube (Bypassing Dashboard)..."
+        # Humne URL ke aage ?bandwidthtest=false aur direct push settings lagayi hain taaki stream turant public ho jaye
         ffmpeg -re -stream_loop -1 -i video.mp4 -c:v libx264 -preset veryfast -b:v 2500k -maxrate 2500k -bufsize 5000k -pix_fmt yuv420p -g 50 -c:a aac -b:a 128k -ar 44100 -f flv "rtmp://a.rtmp.youtube.com/live2/$STREAM_KEY?bandwidthtest=false"
