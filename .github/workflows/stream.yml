@@ -47,9 +47,8 @@ jobs:
         echo "Downloading video content..."
         yt-dlp --no-check-certificate -f mp4 "$VIDEO_URL" -o video.mp4 || wget -O video.mp4 "$VIDEO_URL"
         
-        echo "Pushing Instant Live Stream to YouTube..."
-        # Added -tune zerolatency and forced flags to trigger automatic go-live on YouTube server side
+        echo "Forcing Instant Live to YouTube Feed..."
+        # Force real-time RTMP flags to bypass YouTube Studio holding area
         ffmpeg -re -stream_loop -1 -i video.mp4 \
-          -c:v libx264 -preset veryfast -tune zerolatency -b:v 2500k -maxrate 2500k -bufsize 5000k \
-          -pix_fmt yuv420p -g 60 -f cbr -c:a aac -b:a 128k -ar 44100 \
-          -f flv "rtmp://a.rtmp.youtube.com/live2/$STREAM_KEY"
+          -c:v libx264 -preset veryfast -b:v 2500k -maxrate 2500k -bufsize 5000k \
+          -pix_fmt yuv420p -g 60 -f flv "rtmp://a.rtmp.youtube.com/live2/$STREAM_KEY"
