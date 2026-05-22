@@ -2,7 +2,7 @@ name: 24-7 Free Stream Engine
 
 on:
   repository_dispatch:
-    types: [start_stream, start-stream]
+    types: [start_stream, start-stream, start]
   workflow_dispatch:
     inputs:
       video_url:
@@ -13,6 +13,10 @@ on:
         description: 'YouTube Stream Key'
         required: false
         default: ''
+
+permissions:
+  actions: write
+  contents: read
 
 jobs:
   stream:
@@ -33,7 +37,10 @@ jobs:
         
         if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
           VIDEO_URL="${{ github.event.client_payload.video_url }}"
+          [ -z "$VIDEO_URL" ] && VIDEO_URL="${{ github.event.client_payload.url }}"
+          
           STREAM_KEY="${{ github.event.client_payload.stream_key }}"
+          [ -z "$STREAM_KEY" ] && STREAM_KEY="${{ github.event.client_payload.key }}"
         else
           VIDEO_URL="${{ github.event.inputs.video_url }}"
           STREAM_KEY="${{ github.event.inputs.stream_key }}"
@@ -47,8 +54,5 @@ jobs:
         echo "Downloading video content..."
         yt-dlp --no-check-certificate -f mp4 "$VIDEO_URL" -o video.mp4 || wget -O video.mp4 "$VIDEO_URL"
         
-        echo "Forcing Instant Live to YouTube Feed..."
-        # Force real-time RTMP flags to bypass YouTube Studio holding area
-        ffmpeg -re -stream_loop -1 -i video.mp4 \
-          -c:v libx264 -preset veryfast -b:v 2500k -maxrate 2500k -bufsize 5000k \
-          -pix_fmt yuv420p -g 60 -f flv "rtmp://a.rtmp.youtube.com/live2/$STREAM_KEY"
+        echo "Streaming to YouTube..."
+        ffmpeg -re -stream_loop -1 -i video.mp4 -c:v libx264 -preset veryfast -b:v 2500k -maxrate 2500k -bufsize 5000k -pix_fmt yuv420p -g 50 -c:a aac -b:a 128k -ar 44100 -f flv "rtmp://a.rtmp.youtube.com/live2/$STREAM_KEY"
